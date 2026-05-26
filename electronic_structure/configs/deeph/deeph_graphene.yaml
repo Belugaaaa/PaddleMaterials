@@ -1,0 +1,107 @@
+Global:
+  do_train: True
+  do_eval: True
+  do_test: True
+
+Trainer:
+  max_epochs: 5
+  seed: 42
+  output_dir: ./output/deeph_graphene
+  save_freq: 1
+  log_freq: 1
+  start_eval_epoch: 0
+  eval_freq: 1
+  pretrained_model_path: null
+  pretrained_weight_name: null
+  resume_from_checkpoint: null
+  use_amp: False
+  amp_level: "O1"
+  eval_with_no_grad: True
+  gradient_accumulation_steps: 1
+  best_metric_indicator: "eval_loss"
+  name_for_best_metric: "loss"
+  greater_is_better: False
+  compute_metric_during_train: False
+  metric_strategy_during_eval: "epoch"
+  use_visualdl: False
+  use_wandb: False
+  use_tensorboard: False
+
+Model:
+  __class_name__: DeepHHamiltonian
+  __init_params__:
+    num_species: 1
+    in_atom_fea_len: 64
+    in_edge_fea_len: 128
+    num_orbital: 169
+    num_l: 5
+    gauss_stop: 6.0
+    if_exp: True
+    normalization: LayerNorm
+    target_name: label
+
+Optimizer:
+  __class_name__: TorchAdam
+  __init_params__:
+    lr: 0.001
+    weight_decay: 0.0
+    beta1: 0.9
+    beta2: 0.999
+    epsilon: 1.0e-08
+  clip_norm_global: 4.2
+
+Dataset:
+  train:
+    dataset:
+      __class_name__: DeepHDataset
+      __init_params__:
+        config_files:
+          - ./data/deeph/graphene/config.ini
+        split: train
+        split_seed: 42
+    sampler:
+      __class_name__: BatchSampler
+      __init_params__:
+        shuffle: True
+        drop_last: False
+        batch_size: 4
+    loader:
+      num_workers: 0
+      use_shared_memory: False
+      collate_fn: DeepHCollator
+  val:
+    dataset:
+      __class_name__: DeepHDataset
+      __init_params__:
+        config_files:
+          - ./data/deeph/graphene/config.ini
+        split: val
+        split_seed: 42
+    sampler:
+      __class_name__: BatchSampler
+      __init_params__:
+        shuffle: False
+        drop_last: False
+        batch_size: 4
+    loader:
+      num_workers: 0
+      use_shared_memory: False
+      collate_fn: DeepHCollator
+  test:
+    dataset:
+      __class_name__: DeepHDataset
+      __init_params__:
+        config_files:
+          - ./data/deeph/graphene/config.ini
+        split: test
+        split_seed: 42
+    sampler:
+      __class_name__: BatchSampler
+      __init_params__:
+        shuffle: False
+        drop_last: False
+        batch_size: 4
+    loader:
+      num_workers: 0
+      use_shared_memory: False
+      collate_fn: DeepHCollator

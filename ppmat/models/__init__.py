@@ -22,26 +22,69 @@ from typing import Optional
 
 from omegaconf import OmegaConf
 
-from ppmat.models.chgnet.chgnet import CHGNet
-from ppmat.models.chgnet.chgnet_graph_converter import CHGNetGraphConverter
-from ppmat.models.comformer.comformer import iComformer
-from ppmat.models.comformer.comformer_graph_converter import ComformerGraphConverter
-from ppmat.models.common.graph_converter import CrystalNN
-from ppmat.models.common.graph_converter import FindPointsInSpheres
-from ppmat.models.common.graph_converter import MolecularGraphConverter
-from ppmat.models.diffcsp.diffcsp import DiffCSP
-from ppmat.models.diffnmr.diffnmr import DiffNMR
-from ppmat.models.diffnmr.diffnmr import DiffPrior
-from ppmat.models.diffnmr.diffnmr import MolecularGraphFormer
-from ppmat.models.diffnmr.diffnmr import NMRNetCLIP
-from ppmat.models.dimenetpp.dimenetpp import DimeNetPlusPlus
-from ppmat.models.mattergen.mattergen import MatterGen
-from ppmat.models.mattergen.mattergen import MatterGenWithCondition
-from ppmat.models.mattersim.m3gnet import M3GNet
-from ppmat.models.mattersim.m3gnet_graph_converter import M3GNetGraphConvertor
-from ppmat.models.megnet.megnet import MEGNetPlus
-from ppmat.models.infgcn.infgcn import InfGCN
-from ppmat.models.mateno.mateno import MatENO
+try:
+    from ppmat.models.chgnet.chgnet import CHGNet
+    from ppmat.models.chgnet.chgnet_graph_converter import CHGNetGraphConverter
+except Exception:
+    CHGNet = None
+    CHGNetGraphConverter = None
+try:
+    from ppmat.models.comformer.comformer import iComformer
+    from ppmat.models.comformer.comformer_graph_converter import ComformerGraphConverter
+except Exception:
+    iComformer = None
+    ComformerGraphConverter = None
+try:
+    from ppmat.models.common.graph_converter import CrystalNN
+    from ppmat.models.common.graph_converter import FindPointsInSpheres
+    from ppmat.models.common.graph_converter import MolecularGraphConverter
+except Exception:
+    CrystalNN = None
+    FindPointsInSpheres = None
+    MolecularGraphConverter = None
+try:
+    from ppmat.models.diffcsp.diffcsp import DiffCSP
+except Exception:
+    DiffCSP = None
+try:
+    from ppmat.models.diffnmr.diffnmr import DiffNMR
+    from ppmat.models.diffnmr.diffnmr import DiffPrior
+    from ppmat.models.diffnmr.diffnmr import MolecularGraphFormer
+    from ppmat.models.diffnmr.diffnmr import NMRNetCLIP
+except Exception:
+    DiffNMR = None
+    DiffPrior = None
+    MolecularGraphFormer = None
+    NMRNetCLIP = None
+try:
+    from ppmat.models.dimenetpp.dimenetpp import DimeNetPlusPlus
+except Exception:
+    DimeNetPlusPlus = None
+from ppmat.models.deeph.deeph import DeepHHamiltonian
+try:
+    from ppmat.models.mattergen.mattergen import MatterGen
+    from ppmat.models.mattergen.mattergen import MatterGenWithCondition
+except Exception:
+    MatterGen = None
+    MatterGenWithCondition = None
+try:
+    from ppmat.models.mattersim.m3gnet import M3GNet
+    from ppmat.models.mattersim.m3gnet_graph_converter import M3GNetGraphConvertor
+except Exception:
+    M3GNet = None
+    M3GNetGraphConvertor = None
+try:
+    from ppmat.models.megnet.megnet import MEGNetPlus
+except Exception:
+    MEGNetPlus = None
+try:
+    from ppmat.models.infgcn.infgcn import InfGCN
+except Exception:
+    InfGCN = None
+try:
+    from ppmat.models.mateno.mateno import MatENO
+except Exception:
+    MatENO = None
 from ppmat.utils import download
 from ppmat.utils import logger
 from ppmat.utils import save_load
@@ -65,6 +108,7 @@ __all__ = [
     "NMRNetCLIP",
     "DiffPrior",
     "DiffNMR",
+    "DeepHHamiltonian",
     "InfGCN",
     "MatENO",
 ]

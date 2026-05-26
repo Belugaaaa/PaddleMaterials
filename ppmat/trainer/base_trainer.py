@@ -882,6 +882,15 @@ class BaseTrainer:
     def _determine_best_metric(
         self, train_loss_info, train_metric_info, eval_loss_info, eval_metric_info
     ):
+        def _resolve_meter(meter_dict, preferred_name):
+            if meter_dict is None:
+                return None
+            if preferred_name in meter_dict:
+                return meter_dict[preferred_name]
+            if len(meter_dict) == 1:
+                return next(iter(meter_dict.values()))
+            return None
+
         best_metric_indicator = self.config.get("best_metric_indicator", None)
         if best_metric_indicator is None:
             return False
@@ -894,18 +903,42 @@ class BaseTrainer:
 
         greater_is_better = self.config["greater_is_better"]
         if best_metric_indicator == "train_loss":
-            self.state.cur_metric = train_loss_info[name_for_best_metric].avg
+            meter = _resolve_meter(train_loss_info, name_for_best_metric)
+            if meter is None:
+                logger.warning(
+                    f"No train_loss meter named '{name_for_best_metric}' found, skip saving best model."
+                )
+                return False
+            self.state.cur_metric = meter.avg
         elif best_metric_indicator == "train_metric":
-            self.state.cur_metric = train_metric_info[name_for_best_metric].avg
+            meter = _resolve_meter(train_metric_info, name_for_best_metric)
+            if meter is None:
+                logger.warning(
+                    f"No train_metric meter named '{name_for_best_metric}' found, skip saving best model."
+                )
+                return False
+            self.state.cur_metric = meter.avg
         elif best_metric_indicator == "eval_loss":
             if eval_loss_info is not None:
-                self.state.cur_metric = eval_loss_info[name_for_best_metric].avg
+                meter = _resolve_meter(eval_loss_info, name_for_best_metric)
+                if meter is None:
+                    logger.warning(
+                        f"No eval_loss meter named '{name_for_best_metric}' found, skip saving best model."
+                    )
+                    return False
+                self.state.cur_metric = meter.avg
             else:
                 logger.warning("No eval_loss info found, skip saving best model.")
                 return False
         elif best_metric_indicator == "eval_metric":
             if eval_metric_info is not None:
-                self.state.cur_metric = eval_metric_info[name_for_best_metric].avg
+                meter = _resolve_meter(eval_metric_info, name_for_best_metric)
+                if meter is None:
+                    logger.warning(
+                        f"No eval_metric meter named '{name_for_best_metric}' found, skip saving best model."
+                    )
+                    return False
+                self.state.cur_metric = meter.avg
             else:
                 logger.warning("No eval_metric info found, skip saving best model.")
                 return False

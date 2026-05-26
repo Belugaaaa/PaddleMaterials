@@ -6,28 +6,38 @@ Machine Learning Electronic Structure (MLES) is an emerging paradigm in computat
 
 ## 2.Models Matrix
 
-| **Supported Functions**                      | **[InfGCN](./configs/infgcn/README.md)** |
-| -------------------------------------------- | :--------: |
-| **Forward Prediction · Materials Properties**|            |
-| Electron density                             |      ✅    |
-| **ML Capabilities · Training**               |            |
-| Single-GPU                                   |      ✅    |
-| Distributed training                         |      ✅    |
-| Mixed precision (AMP)                        |      —     |
-| Fine-tuning                                  |      ✅    |
-| Uncertainty / Active Learning                |      —     |
-| Dynamic→Static graphs                        |      —     |
-| Compiler (CINN) opt.                         |      —     |
-| **ML Capabilities · Predict**                |            |
-| Distillation / Pruning                       |      —     |
-| Standard inference                           |      ✅    |
-| Distributed inference                        |      —     |
-| Compiler-level inference                     |      —     |
-| **Datasets**                                 |            |
-| **Materials Project**                        |            |
-| MP_EC                                        |      ✅    |
-| MD17_EC                                      |      ✅    |
-| QM9_EC                                       |      ✅    |
-| OMol25_EC                                    |      ✅    |
+| **Supported Functions**                      | **[InfGCN](./configs/infgcn/README.md)** | **[DeepH](./configs/deeph/README.md)** |
+| -------------------------------------------- | :--------: | :--------: |
+| **Forward Prediction · Materials Properties**|            |            |
+| Electron density                             |      ✅    |      —     |
+| Hamiltonian matrix elements                  |      —     |      ✅    |
+| **ML Capabilities · Training**               |            |            |
+| Single-GPU                                   |      ✅    |      ✅    |
+| Distributed training                         |      ✅    |      —     |
+| Mixed precision (AMP)                        |      —     |      —     |
+| Fine-tuning                                  |      ✅    |      ✅    |
+| Uncertainty / Active Learning                |      —     |      —     |
+| Dynamic→Static graphs                        |      —     |      pending |
+| Compiler (CINN) opt.                         |      —     |      pending |
+| **ML Capabilities · Predict**                |            |            |
+| Distillation / Pruning                       |      —     |      —     |
+| Standard inference                           |      ✅    |      ✅    |
+| Distributed inference                        |      —     |      —     |
+| Compiler-level inference                     |      —     |      pending |
+| **Datasets**                                 |            |            |
+| Graphene Hamiltonian                         |      —     |      ✅    |
+| TBG Hamiltonian                              |      —     |      subset |
+
+DeepH status note:
+
+- `ppmat/models/deeph`
+- `ppmat/datasets/deeph_dataset.py`
+- `ppmat/datasets/collate_fn.py::DeepHCollator`
+- `electronic_structure/configs/deeph/deeph_graphene.yaml`
+
+These pieces already allow DeepH to enter the standard PaddleMaterials
+`build_dataloader -> build_model -> BaseTrainer` path. Predictor / sampler
+entries are available, while compiler benchmarking still needs final GPU timing
+numbers for the MIIT acceptance material.
 
 **Notice**:🌟 represent originate research work published from paddlematerials toolkit
