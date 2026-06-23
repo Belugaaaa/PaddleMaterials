@@ -20,6 +20,12 @@ through the unified PaddleMaterials task stack.
 - Sampler:
   - `ppmat/sampler/deeph_sampler.py`
 
+## Environment
+
+Use an official PaddlePaddle release that is compatible with PaddleMaterials.
+This integration is intended for PaddlePaddle `3.2.2` or later and does not
+intentionally rely on develop-only Paddle APIs.
+
 ## Resource links
 
 These fields are intentionally reserved for the Baidu engineer handoff process.

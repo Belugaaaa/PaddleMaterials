@@ -27,8 +27,9 @@ DeepH physical graph semantics.
 ## Environment
 
 Use an official PaddlePaddle release that is compatible with PaddleMaterials.
-The validation environment used PaddlePaddle 3.x. For AI Studio reproduction,
-use PaddlePaddle `3.2.2` or later and the TianShu hardware option.
+This integration is intended for PaddlePaddle `3.2.2` or later and does not
+intentionally rely on develop-only Paddle APIs. For AI Studio reproduction, use
+PaddlePaddle `3.2.2` or later and the TianShu hardware option.
 
 Additional Python dependencies are the standard PaddleMaterials dependencies
 plus the upstream DeepH data-processing package. Before using `DeepHDataset`,
