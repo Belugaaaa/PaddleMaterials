@@ -35,14 +35,29 @@ if "CONDA_PREFIX" in os.environ:
 
 from ppmat.datasets.build_structure import BuildStructure
 from ppmat.datasets.geometric_data_type.data import Data
+from ppmat.utils import logger
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from deeph import DeepHKernel
-from deeph import get_config
-from deeph import get_graph
+try:
+    from deeph import DeepHKernel
+    from deeph import get_config
+    from deeph import get_graph
+except ImportError:
+    DeepHKernel = None
+    get_config = None
+    get_graph = None
+
+
+def _require_deeph_dependency():
+    if DeepHKernel is None or get_config is None or get_graph is None:
+        raise ImportError(
+            "DeepHDataset requires the upstream DeepH package for graph "
+            "construction. Install the DeepH data-processing dependency and "
+            "make sure `import deeph` works before using DeepHDataset."
+        )
 
 
 def _as_tuple(config_files) -> Tuple[str, ...]:
@@ -110,6 +125,7 @@ class DeepHDataset(paddle.io.Dataset):
         self.split_seed = int(split_seed) if split_seed is not None else None
         self.use_factory_graph_builder = use_factory_graph_builder
 
+        _require_deeph_dependency()
         shared = self._load_shared()
         self.dataset = shared["dataset"]
         self.folder_list = shared["folder_list"]
@@ -216,7 +232,7 @@ class DeepHDataset(paddle.io.Dataset):
             "Z_to_index": Z_to_index,
         }
         torch.save({"graphs": graphs, "info": info}, cache_path)
-        print(
+        logger.info(
             f"Finish building PaddleMaterials graph cache with {len(graphs)} structures, "
             f"cost {time.time() - begin:.0f} seconds"
         )

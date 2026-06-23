@@ -1,93 +1,178 @@
 # DeepH
 
-## Overview
+## Task
 
-DeepH is a machine-learning Hamiltonian model for electronic-structure prediction.
-Compared with the current density-oriented MLES models in PaddleMaterials, DeepH
-targets edge-level Hamiltonian matrix elements on crystal graphs and is therefore a
-useful complement to the existing electron-density workflow.
+DeepH is integrated into the PaddleMaterials machine-learning electronic
+structure (MLES) task. It predicts edge-level Hamiltonian matrix elements on
+crystal graphs and complements electron-density-oriented MLES models.
 
-## Current integration status
+## Model and Dataset
 
-- Model migration baseline has been validated outside PaddleMaterials:
-  - forward alignment
-  - short-horizon training alignment
-  - full `graphene` supervised loss alignment
-- PaddleMaterials-side integration now has a runnable training skeleton:
-  - model implementation under `ppmat/models/deeph`
-  - dataset adapter under `ppmat/datasets/deeph_dataset.py`
-  - unified collator under `ppmat/datasets/collate_fn.py`
-  - task entry under `electronic_structure`
-  - predictor under `ppmat/predictor/deeph_predictor.py`
-  - sampler under `ppmat/sampler/deeph_sampler.py`
-- The following standard-path smoke checks have passed:
-  - `build_dataloader()` returns DeepH LCMP batches
-  - `build_model()` instantiates `DeepHHamiltonian`
-  - one collated batch can run a full forward pass and produce `loss_dict/pred_dict`
-  - `PaddleMaterials/electronic_structure/train.py` has completed a full `graphene` GPU run
-- The dataset adapter now reconstructs crystal structures through
-  `BuildStructure(format='array')` before exposing sample-level structure metadata.
-- The adapter can also build DeepH graph caches inside PaddleMaterials
-  (`PPMatDeepHGraph-...pt`) from those canonical structures.
+The PaddleMaterials integration contains:
 
-## Acceptance evidence
+- model: `ppmat/models/deeph/deeph.py`
+- dataset adapter: `ppmat/datasets/deeph_dataset.py`
+- collator: `ppmat/datasets/collate_fn.py::DeepHCollator`
+- training config: `electronic_structure/configs/deeph/deeph_graphene.yaml`
+- prediction entry: `electronic_structure/predict_deeph.py`
+- sampler-style export entry: `electronic_structure/sample_deeph.py`
 
-- Single-card forward alignment:
-  - `graphene_case_v2`: `max_abs_diff = 1.1444091796875e-05`
-  - `TBG_subset_case_v1`: `max_abs_diff = 1.33514404296875e-05`
-- Two-step training/loss alignment:
-  - `graphene_case_v2`: step 1 `loss_diff = 4.0531158447265625e-06`
-  - `TBG_subset_case_v1`: step 1 `loss_diff = 1.6808509826660156e-05`
-- Supervised metric alignment on `graphene`:
-  - Torch `train/val/test = 0.01066117 / 0.01061319 / 0.01061640`
-  - Paddle `train/val/test = 0.01077699 / 0.01072210 / 0.01072441`
-  - absolute `test_loss` diff: `1.0801231873300288e-04`
-- PaddleMaterials standard trainer run:
-  - output: `output/deeph_graphene`
-- Compiler on/off performance comparison:
-  - dynamic avg: `21.6952 ms`
-  - to_static/CINN avg: `11.4824 ms`
-  - speedup: `88.9434%`
-  - evidence JSON: `runs_paddle/graphene_full/compiler_eval_benchmark.json`
+The dataset adapter reads DeepH processed structures and Hamiltonian labels,
+reconstructs canonical crystal structures through
+`BuildStructure(format="array")`, and then prepares the LCMP graph metadata used
+by DeepH. The low-level Hamiltonian graph construction currently reuses the
+upstream DeepH graph builder so that PaddleMaterials can reproduce the validated
+DeepH physical graph semantics.
 
-## Files
+## Environment
 
-- `ppmat/models/deeph/deeph.py`
-- `electronic_structure/configs/deeph/*.yaml`
-- dataset and collate support under `ppmat/datasets`
+Use an official PaddlePaddle release that is compatible with PaddleMaterials.
+The validation environment used PaddlePaddle 3.x. For AI Studio reproduction,
+use PaddlePaddle `3.2.2` or later and the TianShu hardware option.
 
-## Notes
+Additional Python dependencies are the standard PaddleMaterials dependencies
+plus the upstream DeepH data-processing package. Before using `DeepHDataset`,
+make sure this import works:
 
-- The final PR should add Baidu cloud links for:
-  - processed dataset
-  - pretrained model
-  - logs
-- The current dataset adapter intentionally reuses DeepH's existing processed-graph
-  pipeline for graph construction so we can align with the standard PaddleMaterials trainer first.
-- The remaining strict-compliance gap is that the low-level graph algorithm still
-  reuses DeepH's mature `get_graph()` implementation instead of a fully rewritten
-  PaddleMaterials-native graph factory.
-- `ImageNet` accuracy and generative sampling metrics are not applicable because
-  DeepH is a supervised Hamiltonian-regression model.
+```bash
+python -c "import deeph"
+```
 
-## Resource link placeholders
+## Data Preparation
 
-Fill these placeholders after the reviewer returns the official BCE links.
+The `graphene` example expects a DeepH data package with the following entry
+file:
 
-- Processed dataset:
-  - Official BCE link pending before merge.
-- Pretrained model:
-  - Official BCE link pending before merge.
-- Training and alignment logs:
-  - Official BCE link pending before merge.
+```text
+./data/deeph/graphene/config.ini
+```
 
-## Run
+The `config.ini` file should point to the DeepH processed raw data directory and
+graph cache directory. The processed structure folders are expected to contain
+DeepH files such as:
 
-Prepare the DeepH graphene data package so the config file is available at
-`./data/deeph/graphene/config.ini`, then run from the PaddleMaterials repository
-root:
+```text
+lat.dat
+site_positions.dat
+element.dat
+rc.npz
+```
+
+For this PR, dataset files, pretrained weights, logs, and alignment evidence are
+being provided to reviewers for official BCE link backfill before merge.
+
+Dataset split follows the DeepH config ratios used by the graphene baseline:
+
+- train ratio: `0.6`
+- validation ratio: `0.2`
+- test ratio: `0.2`
+- split seed: `42`
+
+## Training
+
+Run from the PaddleMaterials repository root:
 
 ```bash
 python electronic_structure/train.py \
   -c electronic_structure/configs/deeph/deeph_graphene.yaml
 ```
+
+Key training settings in `deeph_graphene.yaml`:
+
+- epochs: `5`
+- batch size: `4`
+- optimizer: `TorchAdam`
+- learning rate: `0.001`
+- gradient clip norm: `4.2`
+- target: Hamiltonian matrix elements
+
+## Evaluation
+
+The standard trainer runs evaluation and test phases when `Global.do_eval` and
+`Global.do_test` are enabled in the config:
+
+```yaml
+Global:
+  do_train: True
+  do_eval: True
+  do_test: True
+```
+
+Run the same command as training to produce train/eval/test losses:
+
+```bash
+python electronic_structure/train.py \
+  -c electronic_structure/configs/deeph/deeph_graphene.yaml
+```
+
+## Prediction
+
+After preparing data and a checkpoint, run:
+
+```bash
+python electronic_structure/predict_deeph.py \
+  --config electronic_structure/configs/deeph/deeph_graphene.yaml \
+  --checkpoint path/to/best.pdparams \
+  --split test \
+  --save-path output/deeph_predictions.npz \
+  --summary-path output/deeph_prediction_summary.json
+```
+
+For sampler-style prediction export:
+
+```bash
+python electronic_structure/sample_deeph.py \
+  --config electronic_structure/configs/deeph/deeph_graphene.yaml \
+  --checkpoint path/to/best.pdparams \
+  --split test \
+  --save-path output/deeph_samples.npz
+```
+
+DeepH is a supervised Hamiltonian-regression model, so this sampler entry exports
+model predictions rather than generating new crystal structures.
+
+## Reference Results
+
+### Forward Alignment
+
+| Dataset | max_abs_diff | mean_abs_diff |
+| --- | ---: | ---: |
+| graphene | `1.1444e-05` | `2.3287e-07` |
+| TBG_subset | `1.3351e-05` | `2.9067e-07` |
+
+### Two-step Training Alignment
+
+| Dataset | Step 0 loss_diff | Step 1 loss_diff |
+| --- | ---: | ---: |
+| graphene | `0.0` | `4.0531e-06` |
+| TBG_subset | `5.9605e-08` | `1.6809e-05` |
+
+### Supervised Metric Alignment on Graphene
+
+| Framework | train_loss | val_loss | test_loss |
+| --- | ---: | ---: | ---: |
+| Torch | `0.01066117` | `0.01061319` | `0.01061640` |
+| Paddle | `0.01077699` | `0.01072210` | `0.01072441` |
+
+Absolute `test_loss` diff: `1.0801e-04`.
+
+### Compiler Eval Benchmark
+
+| Mode | Avg latency |
+| --- | ---: |
+| Paddle dynamic | `21.6952 ms` |
+| Paddle to_static/CINN | `11.4824 ms` |
+
+Speedup: `88.9434%`.
+
+## References
+
+- DeepH project: https://github.com/mzjb/DeepH-pack
+- PaddleMaterials PR: https://github.com/PaddlePaddle/PaddleMaterials/pull/289
+
+## Notes
+
+- ImageNet accuracy is not applicable to this electronic-structure regression
+  task.
+- Generative sampling metrics are not applicable because DeepH is not a
+  generative model.
