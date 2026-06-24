@@ -16,18 +16,9 @@ import copy
 
 import paddle  # noqa
 
-try:
-    from ppmat.metrics.csp_metric import CSPMetric
-except Exception:
-    CSPMetric = None
-try:
-    from ppmat.metrics.diffnmr_streaming_adapter import DiffNMRStreamingAdapter
-except Exception:
-    DiffNMRStreamingAdapter = None
-try:
-    from ppmat.metrics.sfin_metric import SFINStreamingAdapter
-except Exception:
-    SFINStreamingAdapter = None
+from ppmat.metrics.csp_metric import CSPMetric
+from ppmat.metrics.diffnmr_streaming_adapter import DiffNMRStreamingAdapter
+from ppmat.metrics.sfin_metric import SFINStreamingAdapter
 
 __all__ = [
     "build_metric",

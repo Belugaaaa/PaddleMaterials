@@ -18,6 +18,8 @@ import unittest
 import paddle
 from omegaconf import OmegaConf
 
+from ppmat.datasets.collate_fn import DefaultCollator
+from ppmat.datasets.deeph_dataset import DeepHData
 from ppmat.models.deeph import DeepHHamiltonian
 
 
@@ -90,6 +92,27 @@ class TestDeepH(unittest.TestCase):
         self.assertIn("loss", output["loss_dict"])
         self.assertIn("label", output["pred_dict"])
         self.assertEqual(list(output["pred_dict"]["label"].shape), [num_edges, 9])
+
+    def test_deeph_data_uses_default_collator(self):
+        sample = DeepHData(
+            x=paddle.zeros([2], dtype="int64"),
+            edge_index=paddle.to_tensor([[0, 1], [1, 0]], dtype="int64"),
+            edge_attr=paddle.ones([2, 1], dtype="float32"),
+            label=paddle.zeros([2, 9], dtype="float32"),
+            mask=paddle.ones([2, 9], dtype="bool"),
+            num_nodes=2,
+        )
+        sample.sub_atom_idx = paddle.to_tensor([[0, 1], [1, 0]], dtype="int64")
+        sample.sub_edge_idx = paddle.to_tensor([0, 1], dtype="int64")
+        sample.sub_edge_ang = paddle.zeros([2, 9], dtype="float32")
+        sample.sub_index = paddle.to_tensor([0, 1], dtype="int64")
+
+        batch = DefaultCollator()([sample, sample])
+
+        self.assertEqual(list(batch.x.shape), [4])
+        self.assertEqual(batch.sub_atom_idx.numpy().tolist(), [[0, 1], [1, 0], [2, 3], [3, 2]])
+        self.assertEqual(batch.sub_edge_idx.numpy().tolist(), [0, 1, 2, 3])
+        self.assertEqual(batch.sub_index.numpy().tolist(), [0, 1, 4, 5])
 
 
 if __name__ == "__main__":

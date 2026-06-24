@@ -11,42 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-try:
-    from ppmat import datasets  # noqa
-except Exception:
-    datasets = None
-try:
-    from ppmat import losses  # noqa
-except Exception:
-    losses = None
-try:
-    from ppmat import metrics  # noqa
-except Exception:
-    metrics = None
-try:
-    from ppmat import models  # noqa
-except Exception:
-    models = None
-try:
-    from ppmat import optimizer  # noqa
-except Exception:
-    optimizer = None
-try:
-    from ppmat import schedulers  # noqa
-except Exception:
-    schedulers = None
-try:
-    from ppmat import trainer  # noqa
-except Exception:
-    trainer = None
-try:
-    from ppmat import utils  # noqa
-except Exception:
-    utils = None
-try:
-    from ppmat import sampler  # noqa
-except Exception:
-    sampler = None
+from ppmat import datasets  # noqa
+from ppmat import losses  # noqa
+from ppmat import metrics  # noqa
+from ppmat import models  # noqa
+from ppmat import optimizer  # noqa
+from ppmat import schedulers  # noqa
+from ppmat import trainer  # noqa
+from ppmat import utils  # noqa
+from ppmat import sampler  # noqa
 
 __all__ = [
     "models",

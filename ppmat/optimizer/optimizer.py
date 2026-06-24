@@ -23,7 +23,6 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-import paddle
 from paddle import nn
 from paddle import optimizer as optim
 from paddle import regularizer
@@ -36,7 +35,7 @@ from ppmat.utils import misc
 if TYPE_CHECKING:
     import paddle
 
-__all__ = ["SGD", "Momentum", "Adam", "TorchAdam", "RMSProp", "AdamW", "LBFGS", "OptimizerList"]
+__all__ = ["SGD", "Momentum", "Adam", "RMSProp", "AdamW", "LBFGS", "OptimizerList"]
 
 
 class SGD:
@@ -235,168 +234,6 @@ class Adam:
             amsgrad=self.amsgrad,
         )
         return opt
-
-
-class TorchAdam:
-    """Torch-like Adam implementation used by DeepH alignment.
-
-    This optimizer intentionally mirrors the update path already validated in the
-    standalone DeepH Paddle trainer so PaddleMaterials can reproduce the same
-    convergence behavior.
-    """
-
-    def __init__(
-        self,
-        learning_rate: Union[float, optim.lr.LRScheduler] = 0.001,
-        beta1: float = 0.9,
-        beta2: float = 0.999,
-        epsilon: float = 1e-08,
-        weight_decay: Optional[
-            Union[float, regularizer.L1Decay, regularizer.L2Decay]
-        ] = None,
-        grad_clip: Optional[
-            Union[nn.ClipGradByNorm, nn.ClipGradByValue, nn.ClipGradByGlobalNorm]
-        ] = None,
-    ):
-        if not isinstance(learning_rate, float):
-            raise NotImplementedError("TorchAdam currently expects a constant float learning rate.")
-        if weight_decay is not None and not isinstance(weight_decay, (int, float)):
-            raise NotImplementedError("TorchAdam currently supports only float weight_decay.")
-        self.learning_rate = float(learning_rate)
-        self.beta1 = float(beta1)
-        self.beta2 = float(beta2)
-        self.epsilon = float(epsilon)
-        self.weight_decay = 0.0 if weight_decay is None else float(weight_decay)
-        self.grad_clip = grad_clip
-        self.parameters = []
-        self.step_id = 0
-        self.state = {}
-
-    def __call__(self, model_list: Union[nn.Layer, Tuple[nn.Layer, ...]]):
-        if not isinstance(model_list, (tuple, list)):
-            model_list = (model_list,)
-        self.parameters = [
-            p
-            for m in model_list
-            for p in m.parameters()
-            if p.stop_gradient is False
-        ]
-        return self
-
-    def clear_grad(self):
-        for param in self.parameters:
-            if param.grad is not None:
-                param.clear_gradient()
-
-    def get_lr(self):
-        return self.learning_rate
-
-    def _clip_gradients(self):
-        grads = [p.grad for p in self.parameters if p.grad is not None]
-        if not grads or self.grad_clip is None:
-            return
-
-        if isinstance(self.grad_clip, nn.ClipGradByValue):
-            clip_value = float(self.grad_clip.max)
-            for grad in grads:
-                grad.set_value(paddle.clip(grad, min=-clip_value, max=clip_value))
-            return
-
-        if isinstance(self.grad_clip, nn.ClipGradByNorm):
-            clip_norm = float(self.grad_clip.clip_norm)
-            for grad in grads:
-                grad_norm = paddle.sqrt(paddle.sum(paddle.square(grad)))
-                scale = paddle.minimum(
-                    paddle.to_tensor(1.0, dtype=grad.dtype),
-                    paddle.to_tensor(clip_norm, dtype=grad.dtype) / (grad_norm + 1e-12),
-                )
-                grad.set_value(grad * scale)
-            return
-
-        if isinstance(self.grad_clip, nn.ClipGradByGlobalNorm):
-            clip_norm = float(self.grad_clip.clip_norm)
-            total = None
-            for grad in grads:
-                value = paddle.sum(paddle.square(grad))
-                total = value if total is None else total + value
-            total_norm = paddle.sqrt(total)
-            scale = paddle.minimum(
-                paddle.to_tensor(1.0, dtype=grads[0].dtype),
-                paddle.to_tensor(clip_norm, dtype=grads[0].dtype) / (total_norm + 1e-12),
-            )
-            for grad in grads:
-                grad.set_value(grad * scale)
-            return
-
-    def step(self):
-        self._clip_gradients()
-        self.step_id += 1
-        bias_correction1 = 1.0 - self.beta1**self.step_id
-        bias_correction2 = 1.0 - self.beta2**self.step_id
-        step_size = self.learning_rate / bias_correction1
-
-        for param in self.parameters:
-            grad = param.grad
-            if grad is None:
-                continue
-
-            grad_data = grad
-            if self.weight_decay != 0.0:
-                grad_data = grad_data + self.weight_decay * param
-
-            state = self.state.setdefault(
-                param.name,
-                {
-                    "exp_avg": paddle.zeros_like(param),
-                    "exp_avg_sq": paddle.zeros_like(param),
-                },
-            )
-            exp_avg = state["exp_avg"]
-            exp_avg_sq = state["exp_avg_sq"]
-
-            exp_avg_new = exp_avg * self.beta1 + grad_data * (1.0 - self.beta1)
-            exp_avg_sq_new = exp_avg_sq * self.beta2 + paddle.square(grad_data) * (1.0 - self.beta2)
-            denom = paddle.sqrt(exp_avg_sq_new / bias_correction2) + self.epsilon
-            param_new = param - step_size * exp_avg_new / denom
-
-            exp_avg.set_value(exp_avg_new)
-            exp_avg_sq.set_value(exp_avg_sq_new)
-            param.set_value(param_new)
-
-    def state_dict(self):
-        serialized_state = {}
-        for name, value in self.state.items():
-            serialized_state[name] = {
-                "exp_avg": value["exp_avg"],
-                "exp_avg_sq": value["exp_avg_sq"],
-            }
-        return {
-            "learning_rate": self.learning_rate,
-            "beta1": self.beta1,
-            "beta2": self.beta2,
-            "epsilon": self.epsilon,
-            "weight_decay": self.weight_decay,
-            "step_id": self.step_id,
-            "state": serialized_state,
-        }
-
-    def set_state_dict(self, state_dict):
-        self.learning_rate = float(state_dict.get("learning_rate", self.learning_rate))
-        self.beta1 = float(state_dict.get("beta1", self.beta1))
-        self.beta2 = float(state_dict.get("beta2", self.beta2))
-        self.epsilon = float(state_dict.get("epsilon", self.epsilon))
-        self.weight_decay = float(state_dict.get("weight_decay", self.weight_decay))
-        self.step_id = int(state_dict.get("step_id", 0))
-
-        parameter_map = {param.name: param for param in self.parameters}
-        self.state = {}
-        for name, value in state_dict.get("state", {}).items():
-            if name not in parameter_map:
-                continue
-            self.state[name] = {
-                "exp_avg": paddle.clone(value["exp_avg"]),
-                "exp_avg_sq": paddle.clone(value["exp_avg_sq"]),
-            }
 
 
 class LBFGS:

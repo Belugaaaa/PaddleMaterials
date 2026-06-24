@@ -13,9 +13,7 @@
 # limitations under the License.
 
 from ppmat.predictor.base import BasePredictor
-from ppmat.predictor.deeph_predictor import DeepHPredictor
 
 __all__ = [
     "BasePredictor",
-    "DeepHPredictor",
 ]

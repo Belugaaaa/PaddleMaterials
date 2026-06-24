@@ -15,31 +15,18 @@
 from __future__ import annotations
 
 import os
-import sys
 import time
 from typing import Dict
-from typing import Iterable
 from typing import Tuple
 
 import numpy as np
 import paddle
 import torch
 
-if "CONDA_PREFIX" in os.environ:
-    conda_lib = os.path.join(os.environ["CONDA_PREFIX"], "lib")
-    ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
-    if conda_lib not in ld_library_path.split(":"):
-        os.environ["LD_LIBRARY_PATH"] = (
-            f"{conda_lib}:{ld_library_path}" if ld_library_path else conda_lib
-        )
-
 from ppmat.datasets.build_structure import BuildStructure
+from ppmat.datasets.geometric_data_type.batch import Batch
 from ppmat.datasets.geometric_data_type.data import Data
 from ppmat.utils import logger
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
 
 try:
     from deeph import DeepHKernel
@@ -82,6 +69,41 @@ def _list_structure_folders(raw_data_dir: str, interface: str, nums: int | None 
     return folder_list
 
 
+class DeepHData(Data):
+    """Geometric data object with DeepH LCMP batching semantics."""
+
+    def __cat_dim__(self, key, value):
+        if key in {
+            "sub_atom_idx",
+            "sub_edge_idx",
+            "sub_edge_ang",
+            "sub_index",
+        }:
+            return 0
+        return super().__cat_dim__(key, value)
+
+    def __inc__(self, key, value):
+        if key == "sub_atom_idx":
+            return self.num_nodes
+        if key == "sub_edge_idx":
+            return int(self.edge_attr.shape[0])
+        if key == "sub_index":
+            return int(self.edge_attr.shape[0]) * 2
+        return super().__inc__(key, value)
+
+    @staticmethod
+    def collate_fn(batch):
+        return Batch.from_data_list(
+            batch,
+            exclude_keys=[
+                "structure_lattice",
+                "structure_frac_coords",
+                "structure_atomic_numbers",
+                "structure_folder",
+            ],
+        )
+
+
 def _load_structure_arrays(folder: str):
     lattice = np.loadtxt(os.path.join(folder, "lat.dat")).T
     atom_types = np.loadtxt(os.path.join(folder, "element.dat")).astype(int).tolist()
@@ -113,7 +135,6 @@ class DeepHDataset(paddle.io.Dataset):
         split: str,
         nums: int | None = None,
         split_seed: int | None = None,
-        use_factory_graph_builder: bool = True,
     ):
         super().__init__()
         if split not in {"train", "val", "test"}:
@@ -123,7 +144,6 @@ class DeepHDataset(paddle.io.Dataset):
         self.split = split
         self.nums = nums
         self.split_seed = int(split_seed) if split_seed is not None else None
-        self.use_factory_graph_builder = use_factory_graph_builder
 
         _require_deeph_dependency()
         shared = self._load_shared()
@@ -137,7 +157,6 @@ class DeepHDataset(paddle.io.Dataset):
             self.config_files,
             self.nums,
             self.split_seed or -1,
-            int(self.use_factory_graph_builder),
         )
         shared = self._CACHE.get(cache_key)
         if shared is not None:
@@ -323,7 +342,7 @@ class DeepHDataset(paddle.io.Dataset):
         folder = self.folder_list[graph_index]
         structure_info = self._load_structure(folder)
 
-        data = Data(
+        data = DeepHData(
             x=_torch_to_paddle(graph.x, "int64"),
             edge_index=_torch_to_paddle(graph.edge_index, "int64"),
             edge_attr=_torch_to_paddle(graph.edge_attr, "float32"),
@@ -346,20 +365,16 @@ class DeepHDataset(paddle.io.Dataset):
         else:
             raise ValueError("DeepH sample does not contain LCMP subgraph metadata.")
 
-        data.subgraph_dict = {
-            "subgraph_atom_idx": _torch_to_paddle(
-                subgraph_dict["subgraph_atom_idx"], "int64"
-            ),
-            "subgraph_edge_idx": _torch_to_paddle(
-                subgraph_dict["subgraph_edge_idx"], "int64"
-            ),
-            "subgraph_edge_ang": _torch_to_paddle(
-                subgraph_dict["subgraph_edge_ang"], "float32"
-            ),
-            "subgraph_index": _torch_to_paddle(
-                subgraph_dict["subgraph_index"], "int64"
-            ),
-        }
+        data.sub_atom_idx = _torch_to_paddle(
+            subgraph_dict["subgraph_atom_idx"], "int64"
+        )
+        data.sub_edge_idx = _torch_to_paddle(
+            subgraph_dict["subgraph_edge_idx"], "int64"
+        )
+        data.sub_edge_ang = _torch_to_paddle(
+            subgraph_dict["subgraph_edge_ang"], "float32"
+        )
+        data.sub_index = _torch_to_paddle(subgraph_dict["subgraph_index"], "int64")
         data.structure_lattice = paddle.to_tensor(
             structure_info["lattice"], dtype="float32"
         )

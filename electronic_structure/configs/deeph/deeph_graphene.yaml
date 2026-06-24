@@ -41,7 +41,7 @@ Model:
     target_name: label
 
 Optimizer:
-  __class_name__: TorchAdam
+  __class_name__: Adam
   __init_params__:
     lr: 0.001
     weight_decay: 0.0
@@ -68,7 +68,7 @@ Dataset:
     loader:
       num_workers: 0
       use_shared_memory: False
-      collate_fn: DeepHCollator
+      collate_fn: DefaultCollator
   val:
     dataset:
       __class_name__: DeepHDataset
@@ -86,7 +86,7 @@ Dataset:
     loader:
       num_workers: 0
       use_shared_memory: False
-      collate_fn: DeepHCollator
+      collate_fn: DefaultCollator
   test:
     dataset:
       __class_name__: DeepHDataset
@@ -104,4 +104,4 @@ Dataset:
     loader:
       num_workers: 0
       use_shared_memory: False
-      collate_fn: DeepHCollator
+      collate_fn: DefaultCollator

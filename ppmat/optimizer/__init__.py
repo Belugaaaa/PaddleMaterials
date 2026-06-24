@@ -27,13 +27,11 @@ from ppmat.optimizer.optimizer import AdamW
 from ppmat.optimizer.optimizer import Momentum
 from ppmat.optimizer.optimizer import OptimizerList
 from ppmat.optimizer.optimizer import RMSProp
-from ppmat.optimizer.optimizer import TorchAdam
 
 __all__ = [
     "LBFGS",
     "SGD",
     "Adam",
-    "TorchAdam",
     "AdamW",
     "Momentum",
     "RMSProp",

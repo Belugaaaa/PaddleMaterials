@@ -15,20 +15,12 @@ from typing import Literal
 from typing import Optional
 
 import numpy as np
+from jarvis.core.atoms import Atoms as jAtoms
+from p_tqdm import p_map
 from pymatgen.core.lattice import Lattice
 from pymatgen.core.structure import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.io.cif import CifParser
-
-try:
-    from p_tqdm import p_map
-except Exception:
-    p_map = None
-
-try:
-    from jarvis.core.atoms import Atoms as jAtoms
-except Exception:
-    jAtoms = None
 
 from ppmat.utils.crystal import lattices_to_params_shape_numpy
 
@@ -87,7 +79,7 @@ class BuildStructure:
                 lattice = crystal_data["lattice"]
                 if isinstance(lattice, list):
                     lattice = np.asarray(lattice)
-                lengths, angles = lattices_to_params_shape_numpy(lattice)
+                    lengths, angles = lattices_to_params_shape_numpy(lattice)
 
             if isinstance(lengths, np.ndarray):
                 lengths = lengths.tolist()
@@ -109,10 +101,6 @@ class BuildStructure:
                 primitive=True, on_error="ignore"
             )[0]
         elif format == "jarvis":
-            if jAtoms is None:
-                raise ModuleNotFoundError(
-                    "BuildStructure(format='jarvis') requires the optional 'jarvis' package."
-                )
             crystal = jAtoms.from_dict(crystal_data).pymatgen_converter()
         elif format == "ase_atoms":
             crystal = AseAtomsAdaptor.get_structure(crystal_data)
@@ -134,27 +122,15 @@ class BuildStructure:
 
     def __call__(self, crystals_data):
         if isinstance(crystals_data, list):
-            if p_map is not None:
-                canonical_crystal = p_map(
-                    BuildStructure.build_one,
-                    crystals_data,
-                    [self.format] * len(crystals_data),
-                    [self.primitive] * len(crystals_data),
-                    [self.niggli] * len(crystals_data),
-                    [self.canocial] * len(crystals_data),
-                    num_cpus=self.num_cpus,
-                )
-            else:
-                canonical_crystal = [
-                    BuildStructure.build_one(
-                        crystal_data,
-                        self.format,
-                        self.primitive,
-                        self.niggli,
-                        self.canocial,
-                    )
-                    for crystal_data in crystals_data
-                ]
+            canonical_crystal = p_map(
+                BuildStructure.build_one,
+                crystals_data,
+                [self.format] * len(crystals_data),
+                [self.primitive] * len(crystals_data),
+                [self.niggli] * len(crystals_data),
+                [self.canocial] * len(crystals_data),
+                num_cpus=self.num_cpus,
+            )
             return canonical_crystal
         else:
             return BuildStructure.build_one(
@@ -163,4 +139,5 @@ class BuildStructure:
                 self.primitive,
                 self.niggli,
                 self.canocial,
+                num_cpus=self.num_cpus,
             )

@@ -12,10 +12,8 @@ The PaddleMaterials integration contains:
 
 - model: `ppmat/models/deeph/deeph.py`
 - dataset adapter: `ppmat/datasets/deeph_dataset.py`
-- collator: `ppmat/datasets/collate_fn.py::DeepHCollator`
+- collator: existing `DefaultCollator` with `DeepHData` batching semantics
 - training config: `electronic_structure/configs/deeph/deeph_graphene.yaml`
-- prediction entry: `electronic_structure/predict_deeph.py`
-- sampler-style export entry: `electronic_structure/sample_deeph.py`
 
 The dataset adapter reads DeepH processed structures and Hamiltonian labels,
 reconstructs canonical crystal structures through
@@ -82,7 +80,7 @@ Key training settings in `deeph_graphene.yaml`:
 
 - epochs: `5`
 - batch size: `4`
-- optimizer: `TorchAdam`
+- optimizer: `Adam`
 - learning rate: `0.001`
 - gradient clip norm: `4.2`
 - target: Hamiltonian matrix elements
@@ -108,29 +106,33 @@ python electronic_structure/train.py \
 
 ## Prediction
 
-After preparing data and a checkpoint, run:
+DeepH uses the existing PaddleMaterials dataloader/model/checkpoint utilities.
+After preparing data and a checkpoint, predictions can be exported with:
 
-```bash
-python electronic_structure/predict_deeph.py \
-  --config electronic_structure/configs/deeph/deeph_graphene.yaml \
-  --checkpoint path/to/best.pdparams \
-  --split test \
-  --save-path output/deeph_predictions.npz \
-  --summary-path output/deeph_prediction_summary.json
+```python
+import numpy as np
+import paddle
+from omegaconf import OmegaConf
+
+from ppmat.datasets import build_dataloader
+from ppmat.models import build_model
+from ppmat.utils import save_load
+
+cfg = OmegaConf.to_container(
+    OmegaConf.load("electronic_structure/configs/deeph/deeph_graphene.yaml"),
+    resolve=True,
+)
+model = build_model(cfg["Model"])
+save_load.load_pretrain(model, "path/to/best.pdparams")
+model.eval()
+
+dataloader = build_dataloader(cfg["Dataset"]["test"])
+predictions = []
+with paddle.no_grad():
+    for batch in dataloader:
+        predictions.append(model.predict(batch)["label"].numpy())
+np.savez_compressed("output/deeph_predictions.npz", prediction=np.concatenate(predictions))
 ```
-
-For sampler-style prediction export:
-
-```bash
-python electronic_structure/sample_deeph.py \
-  --config electronic_structure/configs/deeph/deeph_graphene.yaml \
-  --checkpoint path/to/best.pdparams \
-  --split test \
-  --save-path output/deeph_samples.npz
-```
-
-DeepH is a supervised Hamiltonian-regression model, so this sampler entry exports
-model predictions rather than generating new crystal structures.
 
 ## Reference Results
 

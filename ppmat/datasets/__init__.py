@@ -30,73 +30,25 @@ from paddle.io import DataLoader
 from paddle.io import DistributedBatchSampler  # noqa
 
 from ppmat.datasets import collate_fn
-try:
-    from ppmat.datasets.high_level_water_dataset import HighLevelWaterDataset
-except Exception:
-    HighLevelWaterDataset = None
-try:
-    from ppmat.datasets.jarvis_dataset import JarvisDataset
-except Exception:
-    JarvisDataset = None
-try:
-    from ppmat.datasets.matbench_dataset import MatbenchDataset
-except Exception:
-    MatbenchDataset = None
-try:
-    from ppmat.datasets.mp20_dataset import AlexMP20MatterGenDataset
-    from ppmat.datasets.mp20_dataset import MP20Dataset
-    from ppmat.datasets.mp20_dataset import MP20MatterGenDataset
-except Exception:
-    AlexMP20MatterGenDataset = None
-    MP20Dataset = None
-    MP20MatterGenDataset = None
-try:
-    from ppmat.datasets.mp2018_dataset import MP2018Dataset
-except Exception:
-    MP2018Dataset = None
-try:
-    from ppmat.datasets.mp2024_dataset import MP2024Dataset
-except Exception:
-    MP2024Dataset = None
-try:
-    from ppmat.datasets.mptrj_dataset import MPTrjDataset
-except Exception:
-    MPTrjDataset = None
-try:
-    from ppmat.datasets.msd_nmr_dataset import MSDnmrDataset
-    from ppmat.datasets.msd_nmr_dataset import MSDnmrinfos
-except Exception:
-    MSDnmrDataset = None
-    MSDnmrinfos = None
-try:
-    from ppmat.datasets.density_dataset import DensityDataset
-except Exception:
-    DensityDataset = None
+from ppmat.datasets.high_level_water_dataset import HighLevelWaterDataset
+from ppmat.datasets.jarvis_dataset import JarvisDataset
+from ppmat.datasets.matbench_dataset import MatbenchDataset
+from ppmat.datasets.mp20_dataset import AlexMP20MatterGenDataset
+from ppmat.datasets.mp20_dataset import MP20Dataset
+from ppmat.datasets.mp20_dataset import MP20MatterGenDataset
+from ppmat.datasets.mp2018_dataset import MP2018Dataset
+from ppmat.datasets.mp2024_dataset import MP2024Dataset
+from ppmat.datasets.mptrj_dataset import MPTrjDataset
+from ppmat.datasets.msd_nmr_dataset import MSDnmrDataset
+from ppmat.datasets.msd_nmr_dataset import MSDnmrinfos
+from ppmat.datasets.density_dataset import DensityDataset
 from ppmat.datasets.deeph_dataset import DeepHDataset
-try:
-    from ppmat.datasets.small_density_dataset import SmallDensityDataset
-except Exception:
-    SmallDensityDataset = None
-try:
-    from ppmat.datasets.sfin_dataset import SFINDataset
-except Exception:
-    SFINDataset = None
-try:
-    from ppmat.datasets.num_atom_crystal_dataset import NumAtomsCrystalDataset
-except Exception:
-    NumAtomsCrystalDataset = None
-try:
-    from ppmat.datasets.oc20_s2ef_dataset import OC20S2EFDataset  # noqa
-except Exception:
-    OC20S2EFDataset = None
-try:
-    from ppmat.datasets.qm9_dataset import QM9Dataset  # noqa
-except Exception:
-    QM9Dataset = None
-try:
-    from ppmat.datasets.omol25_dataset import OMol25Dataset
-except Exception:
-    OMol25Dataset = None
+from ppmat.datasets.small_density_dataset import SmallDensityDataset
+from ppmat.datasets.sfin_dataset import SFINDataset
+from ppmat.datasets.num_atom_crystal_dataset import NumAtomsCrystalDataset
+from ppmat.datasets.oc20_s2ef_dataset import OC20S2EFDataset  # noqa
+from ppmat.datasets.qm9_dataset import QM9Dataset # noqa
+from ppmat.datasets.omol25_dataset import OMol25Dataset
 from ppmat.datasets.split_mptrj_data import none_to_zero
 from ppmat.datasets.transform import build_transforms
 from ppmat.utils import logger
@@ -121,9 +73,9 @@ __all__ = [
     "OMol25Dataset",
 ]
 
-INFO_CLASS_REGISTRY: Dict[str, type] = {}
-if MSDnmrinfos is not None:
-    INFO_CLASS_REGISTRY["MSDnmrDataset"] = MSDnmrinfos
+INFO_CLASS_REGISTRY: Dict[str, type] = {
+    "MSDnmrDataset": MSDnmrinfos,
+}
 
 
 def worker_init_fn(id: int):

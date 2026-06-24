@@ -62,6 +62,8 @@ class DefaultCollator(object):
             batch = np.array(batch)
             return batch
         elif isinstance(sample, Data):
+            if hasattr(sample, "collate_fn"):
+                return sample.collate_fn(batch)
             # Geometric `Data` objects: batch them into a single `Batch`
             return Batch.from_data_list(batch)
         elif isinstance(sample, (str, bytes)):
@@ -86,56 +88,6 @@ class DefaultCollator(object):
             "batch data can only contains: paddle.Tensor, numpy.ndarray, "
             f"dict, list, number, None, pgl.Graph, but got {type(sample)}"
         )
-
-
-class DeepHCollator:
-    def __call__(self, batch: List[Data]) -> dict:
-        graph_batch = Batch.from_data_list(
-            batch,
-            exclude_keys=[
-                "subgraph_dict",
-                "structure_lattice",
-                "structure_frac_coords",
-                "structure_atomic_numbers",
-                "structure_folder",
-            ],
-        )
-
-        node_offset = 0
-        edge_offset = 0
-        sub_atom_idx_batch = []
-        sub_edge_idx_batch = []
-        sub_edge_ang_batch = []
-        sub_index_batch = []
-
-        for sample in batch:
-            subgraph_dict = sample.subgraph_dict
-            sub_atom_idx_batch.append(subgraph_dict["subgraph_atom_idx"] + node_offset)
-            sub_edge_idx_batch.append(subgraph_dict["subgraph_edge_idx"] + edge_offset)
-            sub_edge_ang_batch.append(subgraph_dict["subgraph_edge_ang"])
-            sub_index_batch.append(subgraph_dict["subgraph_index"] + edge_offset * 2)
-
-            node_offset += int(sample.num_nodes)
-            edge_offset += int(sample.edge_attr.shape[0])
-
-        return {
-            "x": graph_batch.x,
-            "edge_index": graph_batch.edge_index,
-            "edge_attr": graph_batch.edge_attr,
-            "batch": graph_batch.batch,
-            "label": graph_batch.label,
-            "mask": graph_batch.mask,
-            "sub_atom_idx": paddle.concat(sub_atom_idx_batch, axis=0),
-            "sub_edge_idx": paddle.concat(sub_edge_idx_batch, axis=0),
-            "sub_edge_ang": paddle.concat(sub_edge_ang_batch, axis=0),
-            "sub_index": paddle.concat(sub_index_batch, axis=0),
-            "structure_lattice": [sample.structure_lattice for sample in batch],
-            "structure_frac_coords": [sample.structure_frac_coords for sample in batch],
-            "structure_atomic_numbers": [
-                sample.structure_atomic_numbers for sample in batch
-            ],
-            "structure_folder": [sample.structure_folder for sample in batch],
-        }
 
 
 class DensityCollator:
