@@ -78,6 +78,10 @@ try:
 except Exception:
     SmallDensityDataset = None
 try:
+    from ppmat.datasets.sfin_dataset import SFINDataset
+except Exception:
+    SFINDataset = None
+try:
     from ppmat.datasets.num_atom_crystal_dataset import NumAtomsCrystalDataset
 except Exception:
     NumAtomsCrystalDataset = None
@@ -113,6 +117,7 @@ __all__ = [
     "DensityDataset", 
     "DeepHDataset",
     "SmallDensityDataset",
+    "SFINDataset",
     "OMol25Dataset",
 ]
 

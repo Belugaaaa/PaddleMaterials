@@ -24,11 +24,16 @@ try:
     from ppmat.metrics.diffnmr_streaming_adapter import DiffNMRStreamingAdapter
 except Exception:
     DiffNMRStreamingAdapter = None
+try:
+    from ppmat.metrics.sfin_metric import SFINStreamingAdapter
+except Exception:
+    SFINStreamingAdapter = None
 
 __all__ = [
     "build_metric",
     "CSPMetric",
     "DiffNMRStreamingAdapter",
+    "SFINStreamingAdapter",
     # "DiffNMRMetric",
     # "NLL", "CrossEntropyMetric", "SumExceptBatchMetric", "SumExceptBatchKL",
 ]

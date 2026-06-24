@@ -85,6 +85,10 @@ try:
     from ppmat.models.mateno.mateno import MatENO
 except Exception:
     MatENO = None
+try:
+    from ppmat.models.sfin.sfin import SFIN
+except Exception:
+    SFIN = None
 from ppmat.utils import download
 from ppmat.utils import logger
 from ppmat.utils import save_load
@@ -111,6 +115,7 @@ __all__ = [
     "DeepHHamiltonian",
     "InfGCN",
     "MatENO",
+    "SFIN",
 ]
 
 # Warning: The key of the dictionary must be consistent with the file name of the value
@@ -155,6 +160,10 @@ MODEL_REGISTRY = {
     "mattergen_ml2ddb": "https://paddle-org.bj.bcebos.com/paddlematerial/workflow/ml2ddb/mattergen_ml2ddb.zip",
     "mattergen_ml2ddb_chemical_system": "https://paddle-org.bj.bcebos.com/paddlematerial/workflow/ml2ddb/mattergen_ml2ddb_chemical_system.zip",
     "mattergen_ml2ddb_space_group": "https://paddle-org.bj.bcebos.com/paddlematerial/workflow/ml2ddb/mattergen_ml2ddb_space_group.zip",
+    "sfin_haadf_enhance": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_enhancement/sfin/sfin_haadf_enhance.zip",
+    "sfin_haadf_detect": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_enhancement/sfin/sfin_haadf_detect.zip",
+    "sfin_bf_enhance": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_enhancement/sfin/sfin_bf_enhance.zip",
+    "sfin_bf_detect": "https://paddle-org.bj.bcebos.com/paddlematerials/checkpoints/spectrum_enhancement/sfin/sfin_bf_detect.zip",
 }
 
 
