@@ -12,7 +12,7 @@ The PaddleMaterials integration contains:
 
 - model: `ppmat/models/deeph/deeph.py`
 - dataset adapter: `ppmat/datasets/deeph_dataset.py`
-- collator: existing `DefaultCollator` with `DeepHData` batching semantics
+- collator: existing `DefaultCollator`
 - training config: `electronic_structure/configs/deeph/deeph_graphene.yaml`
 
 The dataset adapter reads DeepH processed structures and Hamiltonian labels,

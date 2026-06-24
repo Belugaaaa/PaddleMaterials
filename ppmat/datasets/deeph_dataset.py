@@ -24,7 +24,6 @@ import paddle
 import torch
 
 from ppmat.datasets.build_structure import BuildStructure
-from ppmat.datasets.geometric_data_type.batch import Batch
 from ppmat.datasets.geometric_data_type.data import Data
 from ppmat.utils import logger
 
@@ -91,19 +90,6 @@ class DeepHData(Data):
             return int(self.edge_attr.shape[0]) * 2
         return super().__inc__(key, value)
 
-    @staticmethod
-    def collate_fn(batch):
-        return Batch.from_data_list(
-            batch,
-            exclude_keys=[
-                "structure_lattice",
-                "structure_frac_coords",
-                "structure_atomic_numbers",
-                "structure_folder",
-            ],
-        )
-
-
 def _load_structure_arrays(folder: str):
     lattice = np.loadtxt(os.path.join(folder, "lat.dat")).T
     atom_types = np.loadtxt(os.path.join(folder, "element.dat")).astype(int).tolist()
@@ -120,10 +106,8 @@ def _load_structure_arrays(folder: str):
 class DeepHDataset(paddle.io.Dataset):
     """DeepH dataset adapter for PaddleMaterials.
 
-    This adapter intentionally reuses DeepH's mature graph-building path so the
-    PaddleMaterials integration can focus on the standard trainer / predictor
-    / sampler stack first. The dataset exposes PaddleMaterials geometric
-    `Data` objects and keeps the LCMP subgraph metadata required by DeepH.
+    This adapter exposes PaddleMaterials geometric `Data` objects and keeps the
+    LCMP subgraph metadata required by DeepH.
     """
 
     _CACHE: Dict[Tuple[Tuple[str, ...], int | None, int], Dict] = {}

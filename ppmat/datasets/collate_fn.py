@@ -62,8 +62,6 @@ class DefaultCollator(object):
             batch = np.array(batch)
             return batch
         elif isinstance(sample, Data):
-            if hasattr(sample, "collate_fn"):
-                return sample.collate_fn(batch)
             # Geometric `Data` objects: batch them into a single `Batch`
             return Batch.from_data_list(batch)
         elif isinstance(sample, (str, bytes)):

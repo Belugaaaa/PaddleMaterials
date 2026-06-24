@@ -18,7 +18,7 @@ import unittest
 import paddle
 from omegaconf import OmegaConf
 
-from ppmat.datasets.collate_fn import DefaultCollator
+from ppmat.datasets.geometric_data_type.batch import Batch
 from ppmat.datasets.deeph_dataset import DeepHData
 from ppmat.models.deeph import DeepHHamiltonian
 
@@ -107,7 +107,7 @@ class TestDeepH(unittest.TestCase):
         sample.sub_edge_ang = paddle.zeros([2, 9], dtype="float32")
         sample.sub_index = paddle.to_tensor([0, 1], dtype="int64")
 
-        batch = DefaultCollator()([sample, sample])
+        batch = Batch.from_data_list([sample, sample])
 
         self.assertEqual(list(batch.x.shape), [4])
         self.assertEqual(batch.sub_atom_idx.numpy().tolist(), [[0, 1], [1, 0], [2, 3], [3, 2]])
