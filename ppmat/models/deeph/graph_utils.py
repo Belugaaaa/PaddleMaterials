@@ -23,8 +23,20 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from ppmat.models.deeph.io import load_deeph_matrices
 from ppmat.models.deeph.lcmp import build_lcmp_subgraph
+from ppmat.utils.io import load_deeph_matrices
+
+
+def periodic_image_ranges(frac_coords, lattice, radius):
+    """Return periodic translations that can intersect a radius neighborhood."""
+    reciprocal_lattice = np.linalg.inv(lattice).T * 2 * np.pi
+    reciprocal_lengths = np.linalg.norm(reciprocal_lattice, axis=1)
+    max_images = np.ceil((radius + 0.15) * reciprocal_lengths / (2 * np.pi))
+    minimum = np.floor(np.min(frac_coords, axis=0)) - max_images
+    maximum = np.ceil(np.max(frac_coords, axis=0)) + max_images
+    return [
+        np.arange(start, stop, dtype=np.int64) for start, stop in zip(minimum, maximum)
+    ]
 
 
 def _validate_supported_path(

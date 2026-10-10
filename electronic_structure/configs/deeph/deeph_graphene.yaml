@@ -312,11 +312,6 @@ Dataset:
       __init_params__:
         split: train
         split_seed: 42
-        build_structure_cfg:
-          format: array
-          primitive: false
-          niggli: false
-          canocial: true
         build_graph_cfg:
           __class_name__: FindPointsInSpheres
           __init_params__:
@@ -343,11 +338,6 @@ Dataset:
       __init_params__:
         split: val
         split_seed: 42
-        build_structure_cfg:
-          format: array
-          primitive: false
-          niggli: false
-          canocial: true
         build_graph_cfg:
           __class_name__: FindPointsInSpheres
           __init_params__:
@@ -374,11 +364,6 @@ Dataset:
       __init_params__:
         split: test
         split_seed: 42
-        build_structure_cfg:
-          format: array
-          primitive: false
-          niggli: false
-          canocial: true
         build_graph_cfg:
           __class_name__: FindPointsInSpheres
           __init_params__:

@@ -15,12 +15,14 @@
 from __future__ import annotations
 
 import os
+from itertools import product
 
 import numpy as np
 from pymatgen.core.structure import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 
 from ppmat.models.deeph.graph_utils import build_deeph_graph
+from ppmat.models.deeph.graph_utils import periodic_image_ranges
 
 
 class DeepHGraphConverter:
@@ -63,9 +65,22 @@ class DeepHGraphConverter:
             return structure
         return AseAtomsAdaptor.get_structure(structure)
 
-    def __call__(self, structure, folder, converter_graph=None):
+    def __call__(
+        self,
+        structure,
+        folder,
+        converter_graph=None,
+        only_periodic_images=False,
+    ):
         structure = self._to_structure(structure)
         default_dtype = self.default_dtype
+        if only_periodic_images:
+            ranges = periodic_image_ranges(
+                np.asarray(structure.frac_coords),
+                np.asarray(structure.lattice.matrix),
+                self.radius,
+            )
+            return np.asarray(list(product(*ranges)), dtype=default_dtype)
         return build_deeph_graph(
             np.asarray(structure.cart_coords, dtype=default_dtype),
             np.asarray(structure.atomic_numbers, dtype=np.int64),
@@ -83,3 +98,49 @@ class DeepHGraphConverter:
             if_new_sp=self.if_new_sp,
             converter_graph=converter_graph,
         )
+
+    def to_model_input(self, graph, structure, folder, species=None):
+        """Convert a DeepH graph and its unchanged structure to model arrays."""
+        atomic_numbers = np.asarray(structure.atomic_numbers, dtype=np.int64)
+        if species is None:
+            atom_features = np.asarray(graph.x, dtype=np.int64)
+        else:
+            species_to_index = {
+                int(number): index for index, number in enumerate(species)
+            }
+            unknown_species = sorted(set(atomic_numbers) - set(species_to_index))
+            if unknown_species:
+                raise ValueError(
+                    "DeepH structure contains species missing from the model: "
+                    f"{unknown_species}"
+                )
+            atom_features = np.asarray(
+                [species_to_index[int(number)] for number in atomic_numbers],
+                dtype=np.int64,
+            )
+        subgraph = graph.subgraph_dict
+        model_input = {
+            "x": atom_features,
+            "edge_index": np.asarray(graph.edge_index, dtype=np.int64),
+            "edge_attr": np.asarray(graph.edge_attr, dtype=self.default_dtype),
+            "pos": np.asarray(structure.cart_coords, dtype=self.default_dtype),
+            "sub_atom_idx": np.asarray(subgraph["subgraph_atom_idx"], dtype=np.int64),
+            "sub_edge_idx": np.asarray(subgraph["subgraph_edge_idx"], dtype=np.int64),
+            "sub_edge_ang": np.asarray(
+                subgraph["subgraph_edge_ang"], dtype=self.default_dtype
+            ),
+            "sub_index": np.asarray(subgraph["subgraph_index"], dtype=np.int64),
+            "structure_lattice": np.asarray(
+                structure.lattice.matrix, dtype=self.default_dtype
+            ).reshape(1, 3, 3),
+            "structure_frac_coords": np.asarray(
+                structure.frac_coords, dtype=self.default_dtype
+            ),
+            "structure_atomic_numbers": atomic_numbers,
+            "structure_folder": os.path.abspath(folder),
+        }
+        if hasattr(graph, "label"):
+            model_input["label"] = np.asarray(graph.label, dtype=self.default_dtype)
+        if hasattr(graph, "mask"):
+            model_input["mask"] = np.asarray(graph.mask, dtype=bool)
+        return model_input

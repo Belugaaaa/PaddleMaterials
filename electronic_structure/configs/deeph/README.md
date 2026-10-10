@@ -41,38 +41,6 @@ radius-based graphs (`create_from_DFT=False`) and DFT matrix sparsity graphs
 `interface=npz_rc_only` with local coordinates generated from OpenMX overlap
 blocks.
 
-## Datasets
-
-The graphene example uses DeepH processed data. Each structure folder contains
-the crystal geometry and Hamiltonian labels:
-
-```text
-lat.dat
-site_positions.dat
-element.dat
-orbital_types.dat
-rh.npz
-rc.npz
-```
-
-The PaddleMaterials dataset adapter:
-
-- reads DeepH processed folders from `raw_dir`;
-- reconstructs canonical `pymatgen.Structure` objects with `BuildStructure`;
-- builds periodic crystal graphs with `FindPointsInSpheres`;
-- attaches DeepH Hamiltonian labels and LCMP subgraph metadata;
-- caches parsed graph samples under the configured `graph_dir`.
-
-The baseline graphene split follows the original DeepH config ratios:
-
-| Dataset | Train | Val | Test | Seed |
-| --- | ---: | ---: | ---: | ---: |
-| graphene | 60% | 20% | 20% | 42 |
-
-Download the graphene dataset, pretrained checkpoint, and logs from
-[deeph_bce_handoff](https://pan.baidu.com/s/1dkXlzYV_3DLQugoQDKjsbA?pwd=vi6r)
-(password: `vi6r`).
-
 ## Results
 
 <table>

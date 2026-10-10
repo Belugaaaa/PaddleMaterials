@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
 import os.path as osp
 import pickle
@@ -23,24 +22,51 @@ import numpy as np
 from omegaconf import OmegaConf
 from paddle.io import Dataset
 
-from ppmat.datasets.build_structure import BuildStructure
-from ppmat.datasets.custom_data_type import ConcatData
+from ppmat.datasets.geometric_data_type.data import Data
 from ppmat.models import build_graph_converter
+from ppmat.utils import download
 from ppmat.utils import logger
-from ppmat.utils.crystal import lattices_to_params_shape_numpy
+from ppmat.utils.io import load_deeph_structure
 from ppmat.utils.misc import is_equal
+
+
+class DeepHData(Data):
+    """Graph sample with DeepH-specific batching increments."""
+
+    def __cat_dim__(self, key, value):
+        if key in {"sub_atom_idx", "sub_edge_idx", "sub_edge_ang", "sub_index"}:
+            return 0
+        return super().__cat_dim__(key, value)
+
+    def __inc__(self, key, value):
+        if key == "sub_atom_idx":
+            return self.num_nodes
+        if key == "sub_edge_idx":
+            return self.num_edges
+        if key == "sub_index":
+            return self.num_edges * 2
+        return super().__inc__(key, value)
 
 
 class DeepHDataset(Dataset):
     """DeepH Hamiltonian dataset.
 
-    Each sample is a DeepH processed folder containing crystal geometry,
-    local-coordinate matrices, and Hamiltonian labels. The dataset follows the
-    PaddleMaterials dataset pattern: read raw sample folders, build structures
-    and graphs, cache converted graph objects, and return collatable samples.
+    The graphene benchmark contains DeepH processed structure folders. Each folder
+    stores ``lat.dat``, ``site_positions.dat``, ``element.dat``,
+    ``orbital_types.dat``, ``rc.npz``, and ``rh.npz``. The default split uses a
+    deterministic 60/20/20 ratio with seed 42. Structures are loaded with their
+    original lattice and Cartesian coordinates so training uses the same geometry
+    as overlap-based inference. Converted graphs are cached under ``graph_dir``.
+
+    Samples are returned as :class:`DeepHData`; the standard ``DefaultCollator``
+    therefore delegates batching to :class:`Batch`, which offsets node, edge, and
+    LCMP indices for every sample.
     """
 
     _STRUCTURE_CACHE: Dict[str, Dict] = {}
+    name = "deeph_graphene"
+    url = None
+    md5 = None
 
     def __init__(
         self,
@@ -48,10 +74,11 @@ class DeepHDataset(Dataset):
         config: Dict,
         nums: int | None = None,
         split_seed: int | None = None,
-        build_structure_cfg: Dict[str, Any] | None = None,
         build_graph_cfg: Dict[str, Any] | None = None,
         cache_path: str | None = None,
         overwrite: bool = False,
+        url: str | None = None,
+        md5: str | None = None,
     ):
         super().__init__()
         if split not in {"train", "val", "test"}:
@@ -70,14 +97,23 @@ class DeepHDataset(Dataset):
         self.network_cfg = self.config["network"]
         self.nums = nums
         self.split_seed = split_seed
-        self.build_structure_cfg = build_structure_cfg or {
-            "format": "array",
-            "primitive": False,
-            "niggli": False,
-            "canocial": True,
-        }
         self.build_graph_cfg = build_graph_cfg
         self.overwrite = overwrite
+        raw_dir = self.basic_cfg["raw_dir"]
+        if not osp.exists(raw_dir):
+            dataset_url = url or self.url
+            dataset_md5 = md5 or self.md5
+            if dataset_url is None:
+                raise FileNotFoundError(
+                    f"DeepH dataset directory does not exist: {raw_dir}. "
+                    "Provide a local raw_dir or configure a BCE dataset URL and md5."
+                )
+            downloaded_path = download.get_datasets_path_from_url(
+                dataset_url, dataset_md5
+            )
+            candidate = osp.join(downloaded_path, self.name, "processed")
+            raw_dir = candidate if osp.exists(candidate) else downloaded_path
+            self.basic_cfg["raw_dir"] = raw_dir
         self.structure_graph_converter = None
         if not self.graph_cfg.get("create_from_dft", True):
             self.structure_graph_converter = build_graph_converter(
@@ -88,7 +124,7 @@ class DeepHDataset(Dataset):
         )
 
         self.folder_list, self.num_samples = self.read_data(
-            self.basic_cfg["raw_dir"], self.basic_cfg["interface"], nums
+            raw_dir, self.basic_cfg["interface"], nums
         )
         if self.num_samples == 0:
             raise ValueError(
@@ -105,9 +141,9 @@ class DeepHDataset(Dataset):
         graph_cache_path = osp.join(self.cache_path, "graphs.pkl")
         cfg_cache_path = osp.join(self.cache_path, "dataset_cfg.pkl")
         cache_cfg = {
+            "cache_version": 2,
             "folders": self.folder_list,
             "nums": self.nums,
-            "build_structure_cfg": self.build_structure_cfg,
             "build_graph_cfg": self.get_graph_converter_cfg(),
             "interface": self.basic_cfg["interface"],
             "target": self.basic_cfg["target"],
@@ -222,32 +258,12 @@ class DeepHDataset(Dataset):
         }
 
     def build_structure(self, folder: str):
-        """Build a pymatgen Structure from one DeepH processed folder."""
-        cache_key = json.dumps(
-            {"folder": folder, "cfg": self.build_structure_cfg}, sort_keys=True
-        )
+        """Load a structure without transforming its lattice or coordinates."""
+        cache_key = osp.abspath(folder)
         if cache_key in self._STRUCTURE_CACHE:
             return self._STRUCTURE_CACHE[cache_key]
 
-        lattice = np.loadtxt(osp.join(folder, "lat.dat")).T
-        atom_types = np.loadtxt(osp.join(folder, "element.dat")).astype(int).tolist()
-        cart_coords = np.loadtxt(osp.join(folder, "site_positions.dat")).T
-        frac_coords = cart_coords @ np.linalg.inv(lattice)
-        lengths, angles = lattices_to_params_shape_numpy(lattice)
-
-        builder = BuildStructure(**self.build_structure_cfg)
-        structure = BuildStructure.build_one(
-            {
-                "lengths": lengths,
-                "angles": angles,
-                "frac_coords": frac_coords,
-                "atom_types": atom_types,
-            },
-            builder.format,
-            builder.primitive,
-            builder.niggli,
-            builder.canocial,
-        )
+        structure = load_deeph_structure(folder)
         data = {
             "folder": folder,
             "structure": structure,
@@ -368,52 +384,12 @@ class DeepHDataset(Dataset):
         graph = self.graphs[graph_index]
         structure_info = self.build_structure(self.folder_list[graph_index])
 
-        if hasattr(graph, "subgraph_dict") and graph.subgraph_dict is not None:
-            subgraph_dict = graph.subgraph_dict
-        elif hasattr(graph, "subgraph") and graph.subgraph is not None:
-            subgraph = graph.subgraph
-            subgraph_dict = {
-                "subgraph_atom_idx": subgraph[0],
-                "subgraph_edge_idx": subgraph[1],
-                "subgraph_edge_ang": subgraph[2],
-                "subgraph_index": subgraph[3],
-            }
-        else:
-            raise ValueError("DeepH sample does not contain LCMP subgraph metadata.")
-
-        return {
-            "x": ConcatData(np.asarray(graph.x, dtype=np.int64)),
-            "edge_index": ConcatData(np.asarray(graph.edge_index, dtype=np.int64)),
-            "edge_attr": ConcatData(np.asarray(graph.edge_attr, dtype=np.float32)),
-            "batch": ConcatData(np.zeros(graph.x.shape[0], dtype=np.int64)),
-            "label": ConcatData(np.asarray(graph.label, dtype=np.float32)),
-            "mask": ConcatData(np.asarray(graph.mask, dtype=bool)),
-            "pos": ConcatData(
-                np.asarray(structure_info["cart_coords"], dtype=np.float32)
-            ),
-            "sub_atom_idx": ConcatData(
-                np.asarray(subgraph_dict["subgraph_atom_idx"], dtype=np.int64)
-            ),
-            "sub_edge_idx": ConcatData(
-                np.asarray(subgraph_dict["subgraph_edge_idx"], dtype=np.int64)
-            ),
-            "sub_edge_ang": ConcatData(
-                np.asarray(subgraph_dict["subgraph_edge_ang"], dtype=np.float32)
-            ),
-            "sub_index": ConcatData(
-                np.asarray(subgraph_dict["subgraph_index"], dtype=np.int64)
-            ),
-            "structure_lattice": ConcatData(
-                np.asarray(structure_info["lattice"], dtype=np.float32).reshape(1, 3, 3)
-            ),
-            "structure_frac_coords": ConcatData(
-                np.asarray(structure_info["frac_coords"], dtype=np.float32)
-            ),
-            "structure_atomic_numbers": ConcatData(
-                np.asarray(structure_info["atomic_numbers"], dtype=np.int64)
-            ),
-            "structure_folder": structure_info["folder"],
-        }
+        model_input = self.deeph_graph_converter.to_model_input(
+            graph,
+            structure_info["structure"],
+            structure_info["folder"],
+        )
+        return DeepHData(num_nodes=int(graph.x.shape[0]), **model_input)
 
     def __len__(self):
         return len(self.indices)

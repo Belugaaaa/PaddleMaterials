@@ -23,11 +23,13 @@ from omegaconf import OmegaConf
 from pymatgen.core.structure import Structure
 
 from ppmat.datasets.collate_fn import DefaultCollator
-from ppmat.datasets.custom_data_type import ConcatData
+from ppmat.datasets.deeph_dataset import DeepHData
 from ppmat.datasets.deeph_dataset import DeepHDataset
 from ppmat.models.deeph import DeepHGraphConverter
 from ppmat.models.deeph import DeepHHamiltonian
 from ppmat.predictor.deeph import DeepHPredictor
+from ppmat.utils.io import build_deeph_hamiltonian_blocks
+from ppmat.utils.io import save_deeph_hamiltonian
 
 
 class TestDeepH(unittest.TestCase):
@@ -99,26 +101,58 @@ class TestDeepH(unittest.TestCase):
         self.assertEqual(list(output["pred_dict"]["label"].shape), [num_edges, 9])
 
     def test_deeph_data_uses_default_collator(self):
-        sample = {
-            "x": ConcatData(np.zeros([2], dtype=np.int64)),
-            "edge_index": ConcatData(np.asarray([[0, 1], [1, 0]], dtype=np.int64)),
-            "edge_attr": ConcatData(np.ones([2, 1], dtype=np.float32)),
-            "batch": ConcatData(np.zeros([2], dtype=np.int64)),
-            "label": ConcatData(np.zeros([2, 9], dtype=np.float32)),
-            "mask": ConcatData(np.ones([2, 9], dtype=bool)),
-            "sub_atom_idx": ConcatData(np.asarray([[0, 1], [1, 0]], dtype=np.int64)),
-            "sub_edge_idx": ConcatData(np.asarray([0, 1], dtype=np.int64)),
-            "sub_edge_ang": ConcatData(np.zeros([2, 9], dtype=np.float32)),
-            "sub_index": ConcatData(np.asarray([0, 1], dtype=np.int64)),
-        }
+        def sample(num_nodes, edge_index, sub_atom_idx, sub_edge_idx, sub_index):
+            num_edges = edge_index.shape[1]
+            return DeepHData(
+                num_nodes=num_nodes,
+                x=np.zeros([num_nodes], dtype=np.int64),
+                edge_index=edge_index,
+                edge_attr=np.ones([num_edges, 1], dtype=np.float32),
+                label=np.zeros([num_edges, 9], dtype=np.float32),
+                mask=np.ones([num_edges, 9], dtype=bool),
+                sub_atom_idx=sub_atom_idx,
+                sub_edge_idx=sub_edge_idx,
+                sub_edge_ang=np.zeros([len(sub_edge_idx), 9], dtype=np.float32),
+                sub_index=sub_index,
+            )
 
-        collated = DefaultCollator()([sample])
+        first = sample(
+            2,
+            np.asarray([[0, 1], [1, 0]], dtype=np.int64),
+            np.asarray([[0, 1], [1, 0]], dtype=np.int64),
+            np.asarray([0, 1], dtype=np.int64),
+            np.asarray([0, 1], dtype=np.int64),
+        )
+        second = sample(
+            3,
+            np.asarray([[0, 1, 2], [1, 2, 0]], dtype=np.int64),
+            np.asarray([[0, 1], [1, 2], [2, 0]], dtype=np.int64),
+            np.asarray([0, 1, 2], dtype=np.int64),
+            np.asarray([0, 2, 5], dtype=np.int64),
+        )
 
-        self.assertIsInstance(collated, dict)
-        self.assertEqual(collated["x"].tolist(), [0, 0])
-        self.assertEqual(collated["sub_atom_idx"].tolist(), [[0, 1], [1, 0]])
-        self.assertEqual(collated["sub_edge_idx"].tolist(), [0, 1])
-        self.assertEqual(collated["sub_index"].tolist(), [0, 1])
+        collated = DefaultCollator()([first, second])
+
+        self.assertEqual(collated["batch"].tolist(), [0, 0, 1, 1, 1])
+        self.assertEqual(
+            collated["edge_index"].tolist(), [[0, 1, 2, 3, 4], [1, 0, 3, 4, 2]]
+        )
+        self.assertEqual(
+            collated["sub_atom_idx"].tolist(),
+            [[0, 1], [1, 0], [2, 3], [3, 4], [4, 2]],
+        )
+        self.assertEqual(collated["sub_edge_idx"].tolist(), [0, 1, 2, 3, 4])
+        self.assertEqual(collated["sub_index"].tolist(), [0, 1, 4, 6, 9])
+
+        model = DeepHHamiltonian(
+            num_species=1,
+            in_atom_fea_len=16,
+            in_edge_fea_len=32,
+            num_orbital=9,
+            num_l=3,
+        )
+        output = model(collated)
+        self.assertEqual(output["pred_dict"]["label"].shape, [5, 9])
 
     def test_deeph_prediction_can_export_hamiltonian_npz(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -138,9 +172,7 @@ class TestDeepH(unittest.TestCase):
             }
             pred = np.asarray([[0.25]], dtype=np.float32)
             orbital = [{"6 6": [0, 1]}]
-            predictor = DeepHPredictor()
-
-            hamiltonian = predictor.build_hamiltonian_npz(pred, batch, orbital)
+            hamiltonian = build_deeph_hamiltonian_blocks(pred, batch, orbital)
 
             self.assertEqual(list(hamiltonian.keys()), ["[0, 0, 0, 1, 2]"])
             self.assertEqual(hamiltonian["[0, 0, 0, 1, 2]"].shape, (4, 4))
@@ -151,7 +183,7 @@ class TestDeepH(unittest.TestCase):
             )
 
             output_path = os.path.join(tmpdir, "rh_pred.npz")
-            predictor.save_hamiltonian_npz(output_path, pred, batch, orbital)
+            save_deeph_hamiltonian(output_path, pred, batch, orbital)
             loaded = np.load(output_path)
             self.assertIn("[0, 0, 0, 1, 2]", loaded.files)
             self.assertAlmostEqual(
@@ -171,6 +203,27 @@ class TestDeepH(unittest.TestCase):
 
         self.assertIsInstance(structure, Structure)
         self.assertEqual(len(structure), 2)
+
+    def test_deeph_graph_converter_returns_periodic_image_ranges(self):
+        atoms = Atoms(
+            symbols=["C"],
+            positions=[[0.0, 0.0, 0.0]],
+            cell=np.eye(3) * 2.0,
+            pbc=True,
+        )
+        converter = DeepHGraphConverter(
+            radius=2.1,
+            max_num_nbr=0,
+            default_dtype=np.float32,
+            interface="npz",
+            num_l=2,
+        )
+
+        images = converter(atoms, None, only_periodic_images=True)
+
+        self.assertIn((0, 0, 0), images)
+        self.assertIn((1, 0, 0), images)
+        self.assertIn((-1, 0, 0), images)
 
     def test_deeph_graph_converter_builds_dft_graph(self):
         atoms = Atoms(
@@ -213,10 +266,14 @@ class TestDeepH(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             sample_dir = os.path.join(tmpdir, "raw", "sample")
             os.makedirs(sample_dir)
-            np.savetxt(os.path.join(sample_dir, "lat.dat"), np.eye(3) * 4.0)
+            raw_lattice = np.asarray(
+                [[4.0, 0.2, 0.0], [0.0, 5.0, 0.3], [0.0, 0.0, 6.0]]
+            )
+            raw_positions = np.asarray([[0.0, 1.0], [0.0, 0.2], [0.0, 0.3]])
+            np.savetxt(os.path.join(sample_dir, "lat.dat"), raw_lattice)
             np.savetxt(
                 os.path.join(sample_dir, "site_positions.dat"),
-                np.asarray([[0.0, 1.0], [0.0, 0.0], [0.0, 0.0]]),
+                raw_positions,
             )
             np.savetxt(os.path.join(sample_dir, "element.dat"), [6, 6], fmt="%d")
             with open(os.path.join(sample_dir, "orbital_types.dat"), "w") as file:
@@ -258,7 +315,11 @@ class TestDeepH(unittest.TestCase):
             cached_dataset = DeepHDataset(split="train", config=config)
 
             self.assertEqual(len(dataset), 1)
-            self.assertEqual(dataset[0]["label"].data.shape, (2, 1))
+            self.assertEqual(dataset[0]["label"].shape, (2, 1))
+            np.testing.assert_allclose(
+                dataset[0]["structure_lattice"], raw_lattice.T[None]
+            )
+            np.testing.assert_allclose(dataset[0]["pos"], raw_positions.T)
             self.assertEqual(len(cached_dataset), 1)
 
     def test_deeph_predictor_accepts_dft_interface(self):
